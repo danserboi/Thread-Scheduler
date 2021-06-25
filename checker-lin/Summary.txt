@@ -1,0 +1,49 @@
+- Imagine de ansamblu
+
+Tema implementeaza un planificator de thread-uri preemptiv, bazat pe un algoritm de tip Round Robin cu prioritati, intr-un sistem cu un singur procesor (=> un singur thread va putea rula la un moment dat).
+
+a preempta = a forța părăsirea procesorului
+
+- Funcții/Instrucțiuni Thread-uri
+
+Astfel, se creeaza o biblioteca partajata dinamica care va exporta urmatoarele functii (ce vor reprezenta instructiuni care dureaza o singura perioada de ceas => vor fi atomice):
+	- int so_init(cuantă, io) (INIT) - intializeaza structura planificatorului. Primește ca argumente cuanta de timp după care un proces trebuie preemptat și numărul de evenimente (dispozitive I/O) suportate. Întoarce 0 dacă planificatorul a fost inițializat cu succes, sau negativ în caz de eroare. Numărul maxim de dispozitive I/O suportate este 256 iar indexarea acestora începe de la 0;
+	- tid_t so_fork(handler, prioritate) (FORK) - pornește și introduce în planificator un nou thread. Primește ca parametru o rutină pe care threadul o va executa după ce va fi planificat și prioritatea cu care acesta va rula și întoarce un id unic corespunzător threadului. Handlerul executat de thread va primi ca parametru prioritatea acestuia.  În mod normal, so_fork va fi apelată din contextul unui alt thread din sistem. Se garantează faptul că va exista întotdeauna cel puțin un thread ce poate fi planificat, pe întreg parcursul rulării planificatorului. Excepție face cazul primului so_fork ce va crea primul thread din sistem și va fi apelat din contextul testelor, neavând ca părinte un thread din sistemul simulat.
+	- void so_exec() (EXEC) - simuleaza executia unei instructiuni. Practic, doar consumă timp pe procesor. Se va considera ca o instructiune dureaza o singura unitate de timp logic;
+	- int so_wait(event/io) (WAIT) -  threadul curent se blochează în așteptarea unui eveniment sau a unei operații de I/O. Întoarce 0 dacă evenimentul există (id-ul acestuia este valid) sau negativ în caz de eroare. Un astfel de eveniment va fi identificat printr-un id (0 - nr_events). Numărul total de evenimente (care pot apărea la un moment dat în sistem) va fi dat ca parametru la inițializarea planificatorului. Un thread care a apelat funcția wait, indiferent de prioritate, nu poate fi planificat decât după ce este trezit de un alt thread;
+	- int so_signal(event/io) (SIGNAL) - semnaleaza threadurile care asteapta un anumit eveniment/o anumita operatie IO. Ele sunt eliberate când un alt thread apelează funcția signal pe același eveniment/dispozitiv. Întoarce numărul total de threaduri deblocate, sau negativ în caz de eroare (evenimentul nu este valid);
+	- void so_end() (END) - eliberează structura planificatorului și așteaptă terminarea tuturor threadurilor înainte de părăsirea sistemului.
+
+- Algoritmul Round Robin cu prioritati
+
+Fiecare task are asociată o prioritate statică (nu poate fi modificată pe parcursul execuției thread-ului), care este specificată la pornirea threadului. La expirarea cuantei de timp, threadul care rulează este preemptat și se alege un nou task.
+Dacă un thread este preemptat și revine în starea READY (ex: cazul în care îi expiră cuanta), iar în sistem nu mai există un alt thread READY de prioritate mai mare sau egală cu a lui, va fi replanificat același thread. La replanificarea unui thread, cuanta acestuia de rulare pe procesor va fi resetată la valoarea maximă (nu conteaza daca mai ramasese sau nu timp de executat din cuanta initiala).
+Dacă un thread proaspăt creat sau care doar ce a ieșit din starea de waiting (thread in starea READY) are prioritate mai mare decât threadul care rulează, cel din urmă va fi preemptat și va rula thread-ul cu prioritatea mai mare. Dar odată ce o funcție/instrucțiune a fost planificată, ea nu poate fi preemptată decât după ce și-a terminat treaba.
+
+De exemplu, o instrucțiune se poate abstractiza astfel:
+instruction()
+{
+    do work
+    check scheduler
+    if (preempted)
+        block();
+    return;
+}
+În momentul în care threadul a fost planificat pe procesor, se va executa secvența de cod de mai sus. Funcția “do work” va fi executată imediat ce threadul este planificat. Este nevoie să verificăm dacă threadul a fost preemptat, iar acest lucru se verifică in funcția “check scheduler”. Dacă “check scheduler” va semnala că threadul a fost preemptat, atunci acesta se va bloca până când va fi planificat din nou.
+
+Prin urmare, cazurile în care threadul curent este preemptat și un alt thread începe rularea sunt:
+- un task cu o prioritate mai mare intră în sistem.
+- un task cu o prioritate mai mare este semnalat printr-o operație de tipul signal.
+- task-ului curent i-a expirat cuanta de timp.
+- așteaptă la un eveniment cu ajutorul unei operații de tipul wait.
+- nu mai are instrucțiuni de executat.
+
+- Stări threaduri
+
+Stările prin care poate trece un thread sunt:
+- New - thread nou creat în urma unui apel de tipul fork.
+- Ready - așteaptă să fie planificat.
+- Running - planificat - un singur thread poate rula la un moment dat.
+- Waiting - așteaptă după un eveniment sau o operație I/O. Un thread se va bloca în starea de wait în urma apelului so_wait(event/io).
+- Terminated - și-a încheiat execuția.
+

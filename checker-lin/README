@@ -1,0 +1,54 @@
+Nume: Șerboi Florea-Dan
+Grupă: 335CB
+
+Tema 4 SO
+
+=> Organizare
+
+Logica temei este implementată în so_scheduler.c.
+De asemenea, sunt prezente fișierele glist.c și glist.h. Sunt oferite funcții pentru lucrul cu o listă dublu înlănțuită: inserare la sfârșit, stergerea primului element, verificare listă goală. Structura unei liste e definită în glist.h. Convenția e ca ultimul element din listă să nu aibă succesor, iar primul element din listă are ultimul element ca predecesor, în rest, pentru celelalte elemente, predecesorul și succesorul sunt cei intuiți.
+Cum prioritatile se afla in intervalul 0-5, iar evenimentele se afla in intervalul 0-255, ambele numere fiind mici, m-am gandit ca este o idee foarte buna sa declar un vectori de liste pentru cozile thread-urilor aflate in starea READY, de dimensiune SO_MAX_PRIO + 1, respectiv pentru cele aflate in starea WAITING, de dimensiune SO_MAX_NUM_EVENTS. Astfel, fiecarei valori (prioritate/eveniment) ii corespunde cate o coada. Thread-urile dintr-o anumita coada vor fi alese in ordinea in care au fost adaugate, circular, pana cand le expira cuanta (Round Robin).
+Pentru sincronizarea thread-urilor, am folosit un semafor intr-o structura dedicata fiecarui thread din sistemul simulat, care blocheaza sau nu executia lui. El este utilizat, astfel, pe post de semafor binar. Desi un mutex ar fi fost mai rapid, el nu ar fi permis deblocarea mutex-ului dintr-un alt thread decat cel din cel din care s-a facut lock-ul. De asemenea, este prezent un mutex in structura dedicata planificatorului, de tip recursiv (astfel, un thread care detine mutex-ul deja nu se va bloca la un nou lock), care este folosit pentru sincronizarea thread-urilor atunci cand ele efectueaza operatii cu elementele din structura planificatorului, fiind, evitate, astfel, race condition-urile.
+
+Consider ca tema a fost foarte utila deoarece, in primul rand, ne-a facut sa ne documentam mai bine asupra planificatorului de procese dintr-un sistem de operare, care sunt algoritmii folositi, si cum trebuie implementati unii dintre acestia,
+
+Implementarea este eficienta. Am profitat de faptul ca sunt valori fixe si mici pentru prioritati si numarul de dispozitive I/O si am declarat static un vectori de cozi. Astfel, accesarea unei anumite cozi se face in O(1), la fel ca operatiile de inserare la sfarsit si de stergere de la inceput. Nu cred ca se putea mai bine.
+
+=> Implementare
+
+Tema implementeaza un planificator de thread-uri preemptiv (a preempta = a forța părăsirea procesorului de catre un thread/proces), bazat pe un algoritm de tip Round Robin cu prioritati, intr-un sistem cu un singur procesor (=> un singur thread va putea rula la un moment dat).
+Tot enuntul temei a fost implementat.
+
+Prima dificultate aparuta a fost intelegerea mai bine a modului in care trebuie implementate functiile, ce reprezinta ele de fapt (sunt, intr-adevar, ca niste instructiuni care ruleaza pe un singur procesor si pe care trebuie sa il imparta, dar fiecare la randul ei :D) si cum este facuta legatura intre codul meu si teste. Au fost foarte utile cele doua pseudocod-uri date(unul pentru instruction si celelalt pentru so_fork si start_thread). Am realizat ca respectarea lor este esentiala pentru a obtine implementarea ceruta, si, implicit punctaj pe teste. Cand m-am abatut de la ele, am avut probleme (de exemplu, nu asteptam in so_fork ca thread-ul sa intre in starea READY/RUN si intorceam mai devreme).
+O anumita greseala m-a facut sa pierd ore bune pe parcurs: atunci cand un thread era preemptat, introduceam thread-ul in coada corespunzatoare prioritatii procesului care avea sa ruleze dupa el, in loc sa il introduc in coada corespunzatoare prioritatii sale. Nu mi-a sarit in ochi aceasta greseala decat destul de tarziu.
+De asemenea, nu sincronizam bine thread-urile. Accesul la membrii structurii planificatorului trebuie sa se faca mutual exclusiv de catre fiecare thread. Initial am folosit un semafor binar. Problema era ca se ajungea la deadlock daca apelam acquire la inceputul instructiunilor, respectiv release la sfarsitul lor, deoarece acelasi thread facea acquire mai mult de o data. Am incercat si sa faca acquire si release pentru portiuni mai mici de cod, dar fara succes, deoarece se ajungea la race condition. Astfel, am folosit un mutex de tip recursiv la inceputul si sfarsitul instruciunilor pentru a preveni aceasta problema.
+
+A fost interesant, la modul general, sa intelegem mai bine cum functioneaza un planificator, care sunt algoritmii folositi si chiar sa ii implementam :D.
+
+=> Cum se compilează?
+
+Au fost incluse header-ele stdio.h, stdlib.h, pthread.h, semaphore.h, errno.h, so_scheduler.h si glist.h.
+Se face build folosind comanda make pe Linux. Astfel, este creată o
+bibliotecă partajată.
+
+=> Bibliografie
+
+https://ocw.cs.pub.ro/courses/so/teme/tema-4
+https://ocw.cs.pub.ro/courses/so/laboratoare/laborator-08
+https://ocw.cs.pub.ro/courses/so/cursuri/curs-04
+https://ocw.cs.pub.ro/courses/so/cursuri/curs-08
+https://ocw.cs.pub.ro/courses/so/cursuri/curs-09
+
+https://man7.org/linux/man-pages/man3/sem_init.3.html
+https://man7.org/linux/man-pages/man3/sem_wait.3.html
+https://man7.org/linux/man-pages/man3/sem_post.3.html
+https://man7.org/linux/man-pages/man3/sem_destroy.3.html
+
+https://linux.die.net/man/3/pthread_mutex_init
+https://linux.die.net/man/3/pthread_mutex_lock
+https://linux.die.net/man/3/pthread_mutex_unlock
+https://linux.die.net/man/3/pthread_mutex_destroy
+
+https://man7.org/linux/man-pages/man3/pthread_join.3.html
+https://man7.org/linux/man-pages/man3/pthread_create.3.html
+https://man7.org/linux/man-pages/man3/pthread_join.3.html
